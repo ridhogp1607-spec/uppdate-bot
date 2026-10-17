@@ -213,11 +213,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "*(Bot Anonymous Chat Mahasiswa Universitas Pasir Pengaraian)*\n\n"
         "Wadah buat kamu yang mau ngobrol anonim, curhat seputar kampus, atau cari kenalan baru sesama anak UPP tanpa ketahuan identitas aslimu!\n\n"
         "📌 **Panduan Fitur & Perintah:**\n"
-        "• /search atau tombol **🔍 Cari Partner** : Mulai mencari lawan bicara\n"
-        "• /stop atau tombol **🛑 Berhenti** : Mengakhiri obrolan saat ini\n"
-        "• /reveal atau tombol **🔓 Buka Identitas** : Mengajak partner saling bertukar kontak Telegram\n"
-        "• /profile atau tombol **👤 Profil Saya** : Melihat atau mengubah data profil\n"
-        "• /report : Melaporkan partner jika melanggar etika/berkata tidak senonoh\n"
+        "• /cari atau tombol **🔍 Cari Partner** : Mulai mencari lawan bicara\n"
+        "• /berhenti atau tombol **🛑 Berhenti** : Mengakhiri obrolan saat ini\n"
+        "• /buka atau tombol **🔓 Buka Identitas** : Mengajak partner saling bertukar kontak Telegram\n"
+        "• /profil atau tombol **👤 Profil Saya** : Melihat atau mengubah data profil\n"
+        "• /lapor : Melaporkan partner jika melanggar etika/berkata kasar\n"
         "• /bantuan atau tombol **ℹ️ Bantuan** : Panduan lengkap & etika penggunaan\n\n"
         "Silakan tekan tombol **🔍 Cari Partner** di bawah untuk mulai!"
     )
@@ -233,12 +233,12 @@ async def bantuan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📖 **PANDUAN & BANTUAN UPPDATE** 🎓\n\n"
         "UPPdate adalah bot chat anonim resmi untuk mahasiswa Universitas Pasir Pengaraian.\n\n"
         "📌 **Daftar Perintah:**\n"
-        "• /search : Mulai mencari lawan bicara\n"
-        "• /stop : Mengakhiri obrolan yang sedang berjalan\n"
+        "• /cari : Mulai mencari lawan bicara\n"
+        "• /berhenti : Mengakhiri obrolan yang sedang berjalan\n"
         "• /next : Mengakhiri dan langsung mencari partner baru\n"
-        "• /reveal : Mengajak partner saling bertukar kontak Telegram\n"
-        "• /profile : Melihat atau mengubah gender dan fakultas kamu\n"
-        "• /report : Melaporkan partner jika melanggar etika obrolan\n"
+        "• /buka : Mengajak partner saling bertukar kontak Telegram\n"
+        "• /profil : Melihat atau mengubah gender dan fakultas kamu\n"
+        "• /lapor : Melaporkan partner jika melanggar etika obrolan\n"
         "• /bantuan : Menampilkan pesan bantuan ini\n\n"
         "💡 **Tips Aman Mengobrol:**\n"
         "1. Identitas kamu 100% dirahasiakan oleh bot.\n"
@@ -866,20 +866,22 @@ async def relay_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text("⛔ Akun Anda telah ditangguhkan secara permanen karena melanggar etika komunitas UPP.")
         return
 
-    text = msg.text or ""
-    if text == "🔍 Cari Partner":
+    text = (msg.text or "").strip()
+    clean_text = text.lower()
+
+    if "cari partner" in clean_text or clean_text in ["cari", "search"]:
         await start_search_flow(update, context)
         return
-    elif text == "🛑 Berhenti":
+    elif "berhenti" in clean_text or clean_text in ["stop", "batal", "udahan"]:
         await stop_command(update, context)
         return
-    elif text == "🔓 Buka Identitas":
+    elif "buka identitas" in clean_text or clean_text in ["buka", "reveal", "kontak"]:
         await reveal_command(update, context)
         return
-    elif text == "👤 Profil Saya":
+    elif "profil saya" in clean_text or clean_text in ["profil", "profile"]:
         await profile_command(update, context)
         return
-    elif text == "ℹ️ Bantuan":
+    elif "bantuan" in clean_text or clean_text in ["help", "panduan", "info"]:
         await bantuan_command(update, context)
         return
 
@@ -940,14 +942,14 @@ def main():
         .build()
     )
 
-    app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(CommandHandler("search", start_search_flow))
-    app.add_handler(CommandHandler("stop", stop_command))
-    app.add_handler(CommandHandler("next", next_command))
-    app.add_handler(CommandHandler("reveal", reveal_command))
-    app.add_handler(CommandHandler("profile", profile_command))
-    app.add_handler(CommandHandler("report", report_command))
-    app.add_handler(CommandHandler(["bantuan", "help"], bantuan_command))
+    app.add_handler(CommandHandler(["start", "mulai"], start_command))
+    app.add_handler(CommandHandler(["cari", "search"], start_search_flow))
+    app.add_handler(CommandHandler(["berhenti", "stop"], stop_command))
+    app.add_handler(CommandHandler(["next", "ganti", "lanjut"], next_command))
+    app.add_handler(CommandHandler(["buka", "reveal", "kontak"], reveal_command))
+    app.add_handler(CommandHandler(["profil", "profile"], profile_command))
+    app.add_handler(CommandHandler(["lapor", "report"], report_command))
+    app.add_handler(CommandHandler(["bantuan", "help", "panduan"], bantuan_command))
 
     # Perintah Admin
     app.add_handler(CommandHandler("ban", ban_command))
