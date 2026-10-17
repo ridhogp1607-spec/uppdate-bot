@@ -159,6 +159,14 @@ def count_stats():
     conn.close()
     return total_users, total_banned
 
+def get_banned_users_list():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id, reason, banned_at FROM banned_users ORDER BY banned_at DESC LIMIT 10")
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
 init_db()
 
 # ==========================================
@@ -187,13 +195,21 @@ reveal_requests = {}    # user_id -> set of confirmed reveal users
 waiting_queue = []      # antrean pencarian
 temp_setup = {}         # state sementara saat setup filter
 
-def get_main_keyboard():
+def get_main_keyboard(user_id=None):
     """Menu tombol keyboard bawah yang rapi dan mudah diakses"""
-    keyboard = [
-        [KeyboardButton("🔍 Cari Partner"), KeyboardButton("🛑 Berhenti")],
-        [KeyboardButton("🔓 Buka Identitas"), KeyboardButton("👤 Profil Saya")],
-        [KeyboardButton("ℹ️ Bantuan")]
-    ]
+    if user_id == ADMIN_ID:
+        keyboard = [
+            [KeyboardButton("🔍 Cari Partner"), KeyboardButton("🛑 Berhenti")],
+            [KeyboardButton("🔓 Buka Identitas"), KeyboardButton("👤 Profil Saya")],
+            [KeyboardButton("🚨 Laporkan Partner"), KeyboardButton("👑 Panel Admin")],
+            [KeyboardButton("ℹ️ Bantuan")]
+        ]
+    else:
+        keyboard = [
+            [KeyboardButton("🔍 Cari Partner"), KeyboardButton("🛑 Berhenti")],
+            [KeyboardButton("🔓 Buka Identitas"), KeyboardButton("👤 Profil Saya")],
+            [KeyboardButton("🚨 Laporkan Partner"), KeyboardButton("ℹ️ Bantuan")]
+        ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 # ==========================================
@@ -217,14 +233,18 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• /berhenti atau tombol **🛑 Berhenti** : Mengakhiri obrolan saat ini\n"
         "• /buka atau tombol **🔓 Buka Identitas** : Mengajak partner saling bertukar kontak Telegram\n"
         "• /profil atau tombol **👤 Profil Saya** : Melihat atau mengubah data profil\n"
-        "• /lapor : Melaporkan partner jika melanggar etika/berkata kasar\n"
+        "• /lapor atau tombol **🚨 Laporkan Partner** : Melaporkan partner jika melanggar etika\n"
         "• /bantuan atau tombol **ℹ️ Bantuan** : Panduan lengkap & etika penggunaan\n\n"
         "Silakan tekan tombol **🔍 Cari Partner** di bawah untuk mulai!"
     )
+
+    if user.id == ADMIN_ID:
+        welcome_text += "\n\n👑 **Halo Admin UPPdate!** Tombol **👑 Panel Admin** aktif di keyboard bawah untuk mengontrol bot."
+
     await update.message.reply_text(
         with_credit(welcome_text),
         parse_mode="Markdown",
-        reply_markup=get_main_keyboard()
+        reply_markup=get_main_keyboard(user.id)
     )
 
 async def bantuan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -248,7 +268,7 @@ async def bantuan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         with_credit(help_text),
         parse_mode="Markdown",
-        reply_markup=get_main_keyboard()
+        reply_markup=get_main_keyboard(update.effective_user.id)
     )
 
 async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -687,6 +707,53 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         except Exception:
             pass
 
+    elif data == "admin_refresh":
+        if user_id != ADMIN_ID:
+            await query.answer("Khusus Admin!", show_alert=True)
+            return
+        total_users, total_banned = count_stats()
+        active_pairs = len(active_chats) // 2
+        waiting_count = len(waiting_queue)
+
+        text = (
+            "👑 **PANEL KONTROL ADMIN UPPDATE** 🎓\n"
+            f"Halo Admin (@miminonlien)! Berikut status bot saat ini:\n\n"
+            f"👥 **Total Mahasiswa Terdaftar:** {total_users} orang\n"
+            f"💬 **Obrolan Berjalan Saat Ini:** {active_pairs} pasang\n"
+            f"⏳ **Dalam Antrean Mencari:** {waiting_count} orang\n"
+            f"⛔ **Total Akun Diblokir (Banned):** {total_banned} orang\n\n"
+            "🛠️ **Daftar Perintah Admin:**\n"
+            "• `/ban <user_id>` : Blokir akun mahasiswa nakal\n"
+            "• `/unban <user_id>` : Buka blokir akun mahasiswa\n"
+            "• `/stats` : Cek statistik ringkas"
+        )
+        keyboard = [
+            [
+                InlineKeyboardButton("🔄 Segarkan Data", callback_data="admin_refresh"),
+                InlineKeyboardButton("📋 Pengguna Diblokir", callback_data="admin_list_banned")
+            ]
+        ]
+        await query.edit_message_text(text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+        await query.answer("Data statistik diperbarui!")
+
+    elif data == "admin_list_banned":
+        if user_id != ADMIN_ID:
+            await query.answer("Khusus Admin!", show_alert=True)
+            return
+        banned = get_banned_users_list()
+        if not banned:
+            msg = "📋 **Daftar Pengguna Diblokir:**\n\nBelum ada pengguna yang diblokir saat ini."
+        else:
+            msg = "📋 **Daftar Pengguna Diblokir:**\n\n"
+            for b_id, reason, b_time in banned:
+                msg += f"• ID: `{b_id}` | Alasan: {reason}\n"
+
+        keyboard = [
+            [InlineKeyboardButton("⬅️ Kembali ke Panel Admin", callback_data="admin_refresh")]
+        ]
+        await query.edit_message_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+        await query.answer()
+
 # ==========================================
 # 7. PERINTAH STOP, REVEAL, REPORT, ADMIN
 # ==========================================
@@ -696,8 +763,17 @@ async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if user_id not in active_chats:
         await update.message.reply_text(
-            with_credit("⚠️ Kamu hanya bisa menggunakan fitur /report saat sedang terhubung dalam obrolan aktif!"),
-            parse_mode="Markdown"
+            with_credit(
+                "ℹ️ **PANDUAN FITUR LAPORAN** 🚨\n\n"
+                "Fitur ini digunakan saat kamu sedang mengobrol dengan partner yang berkata kasar, mengirim konten tidak senonoh, atau melanggar norma etika mahasiswa UPP.\n\n"
+                "💡 **Cara Melaporkan:**\n"
+                "1. Tekan tombol **🔍 Cari Partner** untuk mulai ngobrol.\n"
+                "2. Jika partner melanggar, tekan tombol **🚨 Laporkan Partner** di bawah (atau ketik `/lapor`).\n"
+                "3. Pilih **Ya, Laporkan & Putus Chat**.\n\n"
+                "Obrolan akan langsung diputus aman dan akun partner akan dikirim ke Admin untuk diblokir permanen."
+            ),
+            parse_mode="Markdown",
+            reply_markup=get_main_keyboard(user_id)
         )
         return
 
@@ -717,6 +793,43 @@ async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Apakah partner obrolan kamu melakukan pelecehan, berkata kasar, atau melanggar etika?\n\n"
             "Jika kamu melapor, **sesi chat akan langsung diputus** dan identitas partner akan dikirim ke Admin untuk ditinjau."
         ),
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+async def admin_panel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Panel Kontrol Admin Lengkap (@miminonlien)"""
+    user_id = update.effective_user.id
+    if user_id != ADMIN_ID:
+        await update.message.reply_text("⛔ Perintah ini khusus untuk Admin (@miminonlien).")
+        return
+
+    total_users, total_banned = count_stats()
+    active_pairs = len(active_chats) // 2
+    waiting_count = len(waiting_queue)
+
+    text = (
+        "👑 **PANEL KONTROL ADMIN UPPDATE** 🎓\n"
+        f"Halo Admin (@miminonlien)! Berikut status bot saat ini:\n\n"
+        f"👥 **Total Mahasiswa Terdaftar:** {total_users} orang\n"
+        f"💬 **Obrolan Berjalan Saat Ini:** {active_pairs} pasang\n"
+        f"⏳ **Dalam Antrean Mencari:** {waiting_count} orang\n"
+        f"⛔ **Total Akun Diblokir (Banned):** {total_banned} orang\n\n"
+        "🛠️ **Daftar Perintah Admin:**\n"
+        "• `/ban <user_id>` : Blokir akun mahasiswa nakal\n"
+        "• `/unban <user_id>` : Buka blokir akun mahasiswa\n"
+        "• `/stats` : Cek statistik ringkas"
+    )
+
+    keyboard = [
+        [
+            InlineKeyboardButton("🔄 Segarkan Data", callback_data="admin_refresh"),
+            InlineKeyboardButton("📋 Pengguna Diblokir", callback_data="admin_list_banned")
+        ]
+    ]
+
+    await update.message.reply_text(
+        text,
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
@@ -884,11 +997,19 @@ async def relay_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif "bantuan" in clean_text or clean_text in ["help", "panduan", "info"]:
         await bantuan_command(update, context)
         return
+    elif "laporkan partner" in clean_text or clean_text in ["lapor", "report", "laporkan"]:
+        await report_command(update, context)
+        return
+    elif "panel admin" in clean_text or clean_text in ["admin", "panel"]:
+        if user_id == ADMIN_ID:
+            await admin_panel_command(update, context)
+            return
 
     if user_id not in active_chats:
         await msg.reply_text(
             with_credit("Kamu belum terhubung dengan siapa pun! Tekan tombol **🔍 Cari Partner** di bawah untuk mulai."),
-            parse_mode="Markdown"
+            parse_mode="Markdown",
+            reply_markup=get_main_keyboard(user_id)
         )
         return
 
@@ -968,6 +1089,7 @@ def main():
     app.add_handler(CommandHandler(["bantuan", "help", "panduan"], bantuan_command))
 
     # Perintah Admin
+    app.add_handler(CommandHandler(["admin", "panel"], admin_panel_command))
     app.add_handler(CommandHandler("ban", ban_command))
     app.add_handler(CommandHandler("unban", unban_command))
     app.add_handler(CommandHandler("stats", stats_command))
