@@ -1,0 +1,16 @@
+# Environment variables & secrets (JANGAN DI-UPLOAD KE GITHUB)
+.env
+
+# Virtual environment Python
+.venv/
+env/
+venv/
+
+# Database SQLite lokal
+*.db
+*.sqlite3
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
