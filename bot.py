@@ -934,11 +934,27 @@ def main():
         read_timeout=20.0,
         http_version="1.1"
     )
+    async def post_init(application):
+        try:
+            await application.bot.set_my_commands([
+                ("cari", "🔍 Cari partner ngobrol baru"),
+                ("berhenti", "🛑 Akhiri obrolan saat ini"),
+                ("next", "⏭️ Ganti partner obrolan"),
+                ("buka", "🔓 Minta / setujui buka identitas"),
+                ("profil", "👤 Profil kamu & fakultas"),
+                ("lapor", "🚨 Laporkan partner jika melanggar"),
+                ("bantuan", "ℹ️ Panduan & bantuan UPPdate"),
+            ])
+            logger.info("Bot commands menu registered successfully.")
+        except Exception as e:
+            logger.error(f"Gagal set_my_commands: {e}")
+
     app = (
         ApplicationBuilder()
         .token(BOT_TOKEN)
         .request(request)
         .concurrent_updates(True)
+        .post_init(post_init)
         .build()
     )
 
@@ -957,6 +973,21 @@ def main():
     app.add_handler(CommandHandler("stats", stats_command))
 
     app.add_handler(CallbackQueryHandler(handle_callback_query))
+
+    # Handler pesan teks biasa, klik tombol keyboard bawah, dan media chat
+    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, relay_message))
+
+    # Error Handler Global
+    async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+        logger.error("Exception while handling update:", exc_info=context.error)
+        if isinstance(update, Update) and update.effective_message:
+            try:
+                await update.effective_message.reply_text("⚠️ Terjadi kendala teknis sejenak. Silakan coba lagi ya.")
+            except Exception:
+                pass
+
+    app.add_error_handler(error_handler)
+
     # Jalankan health-check server (khusus untuk Render / Koyeb)
     start_health_server()
 
